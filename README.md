@@ -464,7 +464,11 @@ On macOS / Linux the same shape works; just replace the path with `which uv` (ty
 `uvx` downloads the package, builds it in a temporary isolated environment, and runs it — no clone, no `uv sync`, no manual venv. The user only needs `uv` installed.
 
 <details>
-<summary>From GitHub (works as soon as the repo is pushed; same JSON for Cursor and Claude Desktop)</summary>
+<summary>From GitHub (works as soon as the repo is pushed; separate JSON for Cursor and Claude Desktop, plus a Windows cache-priming step)</summary>
+
+Replace `<you>` with your GitHub username (the example below uses `pietrodileo`) and adjust `IRIS_*` for your environment.
+
+**Cursor** — `.cursor/mcp.json` (bare `uvx`; Cursor inherits `PATH` so this works on Windows, macOS, and Linux):
 
 ```json
 {
@@ -472,23 +476,74 @@ On macOS / Linux the same shape works; just replace the path with `which uv` (ty
     "iris-mcp-blueprint": {
       "command": "uvx",
       "args": [
-        "--from", "git+https://github.com/<you>/iris-mcp-blueprint",
+        "--from", "git+https://github.com/pietrodileo/iris-mcp-blueprint.git",
         "iris-mcp-blueprint"
       ],
       "env": {
-        "IRIS_HOSTNAME": "<your-iris-host>",
-        "IRIS_PORT": "1972",
-        "IRIS_WEB_PORT": "52773",
+        "IRIS_HOSTNAME": "localhost",
+        "IRIS_PORT": "9091",
+        "IRIS_WEB_PORT": "9092",
         "IRIS_NAMESPACE": "USER",
         "IRIS_USERNAME": "_SYSTEM",
-        "IRIS_PASSWORD": "<your-password>"
+        "IRIS_PASSWORD": "SYS"
       }
     }
   }
 }
 ```
 
-For Claude Desktop on Windows, swap `"command": "uvx"` for the absolute path (e.g. `"C:\\Users\\<you>\\.local\\bin\\uvx.exe"`).
+**Claude Desktop on Windows** — `claude_desktop_config.json` (use the absolute path to `uvx.exe`, since Claude Desktop spawns child processes with a sanitized `PATH` that often does **not** include `C:\Users\<you>\.local\bin`):
+
+```json
+{
+    "preferences": {
+        "coworkWebSearchEnabled": true,
+        "coworkScheduledTasksEnabled": false,
+        "ccdScheduledTasksEnabled": false
+    },
+    "mcpServers": {
+        "iris-mcp-blueprint": {
+            "command": "C:\\Users\\p.dileo\\.local\\bin\\uvx.exe",
+            "args": [
+                "--from", "git+https://github.com/pietrodileo/iris-mcp-blueprint.git",
+                "iris-mcp-blueprint"
+            ],
+            "env": {
+                "IRIS_HOSTNAME": "localhost",
+                "IRIS_PORT": "9091",
+                "IRIS_WEB_PORT": "9092",
+                "IRIS_NAMESPACE": "USER",
+                "IRIS_USERNAME": "_SYSTEM",
+                "IRIS_PASSWORD": "SYS"
+            }
+        }
+    }
+}
+```
+
+Find your own `uvx.exe` location with `where.exe uvx` in PowerShell (typically `C:\Users\<you>\.local\bin\uvx.exe` after `pip install uv`).
+
+**Windows note — `Git executable not found`**
+
+When Claude Desktop (and occasionally Cursor) first launches `uvx --from git+...` on Windows, you may see:
+
+```text
+× Failed to download and build `iris-mcp-blueprint @ git+https://github.com/...`
+├─▶ Git operation failed
+╰─▶ Git executable not found. Ensure that Git is installed and available.
+```
+
+This is a known [`uv` issue on Windows](https://github.com/astral-sh/uv/issues/5491) — even when `git` is on the system `PATH`, the `uv.exe` process spawned by a GUI host can fail to see it. The reliable workaround is to **prime `uv`'s build cache once from a normal PowerShell**:
+
+```powershell
+uvx --from git+https://github.com/pietrodileo/iris-mcp-blueprint.git iris-mcp-blueprint --help
+```
+
+That single invocation resolves the GitHub HEAD commit, clones via the `git` that PowerShell sees, builds the wheel, and caches the result under `%LOCALAPPDATA%\uv\cache\` keyed by the commit hash. Afterwards, the MCP client reuses the cached build and never invokes `git` at runtime.
+
+**Important:** the cache is keyed by commit hash, so every new push to `main` requires re-priming. To avoid that during development, **pin to a tag or commit** in the JSON — for example `git+https://github.com/pietrodileo/iris-mcp-blueprint.git@v0.1.0`. Or publish to PyPI (next subsection) — the PyPI form doesn't need `git` at all.
+
+After editing the JSON, **fully quit Claude Desktop from the system tray** (closing the window is not enough) and relaunch. Cursor only needs the MCP server reload icon.
 
 </details>
 

@@ -154,6 +154,9 @@ Click any prompt to expand its parameters and workflow.
 
 ### How to test them (Cursor and similar clients)
 
+<details>
+<summary>Click to expand — 4-step recipe + ready-to-use prompt arguments + curl smoke-tests for the QueryService demo</summary>
+
 1. **Start IRIS** (`docker compose up -d`) and **configure the MCP server** using **Environment variables (IRIS connection)** and the JSON example under **Option A — Local** later in this README so the client can reach IRIS (`IRIS_PORT`, `IRIS_NAMESPACE`, credentials, etc.).
 2. In the client, open the **MCP prompts** UI for `iris-mcp-blueprint` (wording varies: “Prompts”, slash command, or the model picker’s MCP prompt list).
 3. **Select a prompt by name** (e.g. `explore-class`) and pass the **parameters** the prompt expects (e.g. class name `MCPTest.BP.QueryService`).
@@ -177,6 +180,8 @@ Click any prompt to expand its parameters and workflow.
   ```
 
   Expected: **`HTTP/1.1 200 OK`** and **`Content-Type: application/json`**. The `service` header is matched case-insensitively; `employee` (singular) is accepted as an alias for `employees`. If your web path or business service **Name** in production differs, replace the URL segment after `/rest/user/` and the final path segment (`QueryService-REST-BS`) accordingly.
+
+</details>
 
 ---
 
@@ -272,6 +277,9 @@ Then `uv run my-mcp` launches the server over stdio.
 
 ### IRIS connection environment variables
 
+<details>
+<summary>Click to expand — table of <code>IRIS_*</code> variables (host, port, namespace, credentials) the server reads at startup</summary>
+
 The server reads these at startup with `os.getenv()`. Set them wherever you launch the server (shell, `mcp.json` `env` block, Docker environment, CI secrets store). There is **no** automatic `.env` file loading.
 
 | Variable | Default | Description |
@@ -284,6 +292,8 @@ The server reads these at startup with `os.getenv()`. Set them wherever you laun
 | `IRIS_PASSWORD` | `SYS` | IRIS password |
 
 For SSE / HTTP transport you can also set `MCP_TRANSPORT`, `FASTMCP_HOST`, and `FASTMCP_PORT` (see **Run the server from the terminal** below).
+
+</details>
 
 ### Run the server from the terminal
 
@@ -364,6 +374,9 @@ Use this when the client cannot spawn the server itself — for example a remote
 </details>
 
 ### Configure Cursor or Claude Desktop
+
+<details>
+<summary>Click to expand — Local (<code>uv run</code>) vs Remote (<code>uvx</code>) JSON snippets for Cursor and Claude Desktop, with a Windows path note</summary>
 
 There are two distribution modes for any MCP client config: **local** (`uv run` against a clone you maintain) and **remote** (`uvx` pulling the package from GitHub or PyPI on demand). Pick one per server.
 
@@ -501,6 +514,8 @@ Or wire it into any client `mcp.json`:
   }
 }
 ```
+
+</details>
 
 </details>
 

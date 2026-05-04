@@ -2,10 +2,7 @@
   "mcpServers": {
     "iris-mcp-blueprint": {
       "command": "uvx",
-      "args": [
-        "--from", "git+https://github.com/pietrodileo/iris-mcp-blueprint.git",
-        "iris-mcp-blueprint"
-      ],
+      "args": ["iris-mcp-blueprint"],
       "env": {
         "IRIS_HOSTNAME": "localhost",
         "IRIS_PORT": "9091",

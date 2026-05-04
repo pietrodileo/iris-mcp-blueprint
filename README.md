@@ -287,6 +287,9 @@ For SSE / HTTP transport you can also set `MCP_TRANSPORT`, `FASTMCP_HOST`, and `
 
 ### Run the server from the terminal
 
+<details>
+<summary>Click to expand — choose between <code>stdio</code> (default, used by Cursor/Claude) and <code>sse</code> (HTTP for remote clients)</summary>
+
 The server supports two transports. Pick the one that matches **how the MCP client will reach it**:
 
 | Transport | When to use it | How the client connects |
@@ -357,6 +360,8 @@ Use this when the client cannot spawn the server itself — for example a remote
    ```
 
 > **Security note**: SSE mode does **not** add authentication on top — anyone who can reach the URL can call the tools (and therefore your IRIS instance). Bind to `127.0.0.1`, put a reverse proxy in front, or run it inside a private network.
+
+</details>
 
 ### Configure Cursor or Claude Desktop
 

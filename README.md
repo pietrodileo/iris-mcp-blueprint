@@ -356,7 +356,7 @@ Config file locations:
 - **macOS:** `~/Library/Application Support/Claude/claude_desktop_config.json`
 
 <details>
-<summary>Claude Desktop JSON (local, Windows — verified working)</summary>
+<summary>Claude Desktop JSON (local, Windows)</summary>
 
 Replace the two absolute paths with yours. Other top-level keys you may already have in `claude_desktop_config.json` (e.g. a `preferences` block) can stay alongside `mcpServers`.
 

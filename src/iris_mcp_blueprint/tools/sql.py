@@ -1,7 +1,11 @@
 from fastmcp import Context
 import io
 import csv
+import json
+import re
 import logging
+from datetime import date, datetime, time
+from decimal import Decimal
 
 from iris_mcp_blueprint.mcp_app import mcp
 
@@ -13,6 +17,25 @@ def validate_table_name(table_name: str, table_schema: str = "SQLUser") -> str:
     if "." in table_name or "_" in table_name:
         raise ValueError(f"Invalid table_name '{table_name}'. Do not include schema or underscores.")
     return f"{table_schema}.{table_name}" if table_schema else table_name
+
+# Identifier check that *does* allow underscores — many real IRIS tables/columns have them.
+# Used by export_table when assembling SELECT statements from caller-supplied names.
+_SQL_IDENT_RE = re.compile(r"^[A-Za-z_][A-Za-z0-9_]*$")
+
+def _check_sql_ident(name: str, label: str) -> str:
+    if not _SQL_IDENT_RE.match(name or ""):
+        raise ValueError(f"Invalid {label} identifier: {name!r}")
+    return name
+
+def _json_default(o):
+    """JSON fallback for IRIS values that are not natively serializable."""
+    if isinstance(o, (datetime, date, time)):
+        return o.isoformat()
+    if isinstance(o, Decimal):
+        return str(o)
+    if isinstance(o, (bytes, bytearray, memoryview)):
+        return bytes(o).decode("utf-8", errors="replace")
+    return str(o)
 
 def format_as_table(headers: list, rows: list) -> str:
     if not rows: return "No results found."
@@ -183,3 +206,90 @@ def import_csv_to_iris(ctx: Context, table_name: str, csv_content: str, table_sc
     except Exception as e:
         if db: db.rollback()
         return f"Failed to import CSV: {e}"
+
+@mcp.tool()
+def export_table(
+    ctx: Context,
+    table_name: str,
+    table_schema: str = "SQLUser",
+    format: str = "json",
+    columns: list | None = None,
+    where: str = "",
+    limit: int = 1000,
+) -> str:
+    """
+    Export rows from an existing IRIS table as JSON, CSV, or TXT (pipe-separated).
+
+    The result is returned as a single string the caller can preview, copy to a file,
+    or stream to a downstream client. For large tables narrow the result with
+    `columns`, `where`, and/or `limit` to keep responses manageable.
+
+    Args:
+        ctx: The context of the tool call.
+        table_name: Bare table name (letters, digits, underscore; no schema, no dot).
+        table_schema: Schema of the table (default 'SQLUser').
+        format: Output format — 'json' (list of objects), 'csv' (RFC 4180, comma
+            delimiter, CRLF line terminator), or 'txt' (pipe-separated columns +
+            ruler, same look as other tools' output). Case-insensitive.
+        columns: Optional list of column names to export. None or empty = all columns.
+        where: Optional SQL fragment placed after WHERE (do **not** include the
+            'WHERE' keyword). Example: "Age > 30 AND City = 'Rome'". Caller is
+            responsible for escaping; consider parameterized fetch_data for
+            untrusted input.
+        limit: Maximum number of rows to return. Pass 0 or a negative value to
+            disable the cap (use only for known-small tables).
+    """
+    db = ctx.request_context.lifespan_context["db"]
+    if db is None:
+        return "Export Error: database connection is not available."
+
+    fmt = (format or "json").strip().lower()
+    if fmt not in {"json", "csv", "txt"}:
+        return f"Export Error: unsupported format '{format}'. Use 'json', 'csv', or 'txt'."
+
+    try:
+        _check_sql_ident(table_name, "table_name")
+        _check_sql_ident(table_schema, "table_schema")
+        if columns:
+            for c in columns:
+                _check_sql_ident(c, "column")
+            select_list = ", ".join(columns)
+        else:
+            select_list = "*"
+
+        sql = f"SELECT {select_list} FROM {table_schema}.{table_name}"
+        if where.strip():
+            sql += f" WHERE {where.strip()}"
+        if limit and limit > 0:
+            # IRIS SQL: TOP comes right after SELECT, so re-emit the statement.
+            sql = f"SELECT TOP {int(limit)} {select_list} FROM {table_schema}.{table_name}"
+            if where.strip():
+                sql += f" WHERE {where.strip()}"
+
+        with db.cursor() as cur:
+            cur.execute(sql)
+            headers = [col[0] for col in cur.description] if cur.description else []
+            rows = cur.fetchall()
+
+        if not headers:
+            return f"Export Error: no result set returned for {table_schema}.{table_name}."
+
+        if fmt == "json":
+            payload = [dict(zip(headers, row)) for row in rows]
+            return json.dumps(payload, indent=2, ensure_ascii=False, default=_json_default)
+
+        if fmt == "csv":
+            buf = io.StringIO()
+            writer = csv.writer(buf, lineterminator="\r\n")
+            writer.writerow(headers)
+            for row in rows:
+                writer.writerow(["" if v is None else _json_default(v) if not isinstance(v, (str, int, float, bool)) else v for v in row])
+            return buf.getvalue()
+
+        # fmt == "txt"
+        return format_as_table(headers, rows)
+
+    except ValueError as ve:
+        return f"Export Error: {ve}"
+    except Exception as e:
+        return f"Export failed for {table_schema}.{table_name}: {e}"

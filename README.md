@@ -84,6 +84,7 @@ Prompts are short, reusable **workflow instructions** returned by `@mcp.prompt` 
 | `analyze-table` | Inspect a table’s structure, sample rows, and suggest indexes. |
 | `explore-class` | Read a class with `get_class_source`, summarize methods, properties, and storage. |
 | `import-csv-workflow` | Safe CSV import: validate name, call `import_csv_to_iris`, verify with `describe_table` / `fetch_data`. |
+| `export-table` | Export an existing table to **JSON**, **CSV**, or **TXT** via the `export_table` tool, with optional `columns` / `where` / `limit` filters and a row-count safety check first. |
 | `search-for-code` | Search class sources with `search_code`, then optionally deep-dive with `explore-class`. |
 | `analyze-table-globals-content` | Map a persistent class / table to globals and explain how data is stored. |
 | `create-rest-bp-endpoint` | Wire a Business Process to HTTP: production items (`EnsLib.REST.GenericService` + BP), `register_web_application`, `update_production`; for `MCPTest.BP.QueryService`, run `PopulateAndAssign` before testing. |
@@ -115,6 +116,26 @@ Click any prompt to expand its parameters and workflow.
 - **Arguments:** `table_name`; a `csv_sample` string (headers plus a few rows are enough); optional `table_schema`.
 - **What it does:** infers types from the sample, checks whether the target already exists via `res_tables_all`, refuses to overwrite blindly, then calls `import_csv_to_iris`. After load it uses `describe_table` and `fetch_data` (for example `SELECT COUNT(*)`) to verify shape and row counts, and may suggest `create_index` once you agree on names.
 - **Try it with the bundled sample:** paste the first few lines of [`example_data/patients.csv`](example_data/patients.csv) (header + a handful of rows) into `csv_sample`, set `table_name` to a fresh name such as `Patients`, and optionally `table_schema` to `MCPTest` (or any schema you like). The workflow will create the table and load all rows.
+
+</details>
+
+<details>
+<summary><code>export-table</code> — dump an existing IRIS table to JSON, CSV, or TXT</summary>
+
+- **Arguments:** `table_name` (required); `format` = `json` (default), `csv`, or `txt`; optional `table_schema` (the workflow asks if empty, defaulting to `SQLUser`).
+- **What it does:**
+  1. Resolves the schema (via `res_tables_all` / `get_tables` if `table_schema` is empty).
+  2. Calls `describe_table` to show the user the columns and types that will be exported.
+  3. Runs `SELECT COUNT(*)` via `fetch_data` and warns if the table is large (>~10 000 rows).
+  4. Asks the user whether to export everything (`limit=0`), apply a `WHERE` filter, restrict to a subset of `columns`, or keep the default `limit=1000`.
+  5. Calls the **`export_table`** tool with the agreed scope and chosen format.
+  6. Previews the first few lines/items and reports the total length, then explains how to save the output (e.g. `<table_name>.<format>`).
+- **Tool details (`export_table`):**
+  - `format` — `'json'` returns a list of objects (`null` for SQL `NULL`, `Decimal` and `datetime` serialized as strings); `'csv'` follows RFC 4180 with a comma delimiter and CRLF line terminator; `'txt'` reuses the pipe-separated table layout shared with the other SQL tools.
+  - `columns` — optional list of column names. Each is validated as a SQL identifier (`[A-Za-z_][A-Za-z0-9_]*`) before being inlined.
+  - `where` — optional SQL fragment **without** the leading `WHERE` keyword (e.g. `Age > 30 AND City = 'Rome'`). Caller is responsible for escaping; for untrusted input use `fetch_data` with parameters instead.
+  - `limit` — defaults to `1000`. Pass `0` (or a negative value) to disable the cap. Implemented as IRIS `SELECT TOP N`, so it streams only the requested rows.
+- **Try it with the demo data:** after `MCPTest.Employer.PopulateAndAssign()` has run (auto-seeded by `iris.script` on first start, or invoked via `run_class_method`), call the prompt with `table_name`: `Employer`, `table_schema`: `MCPTest`, `format`: `json` (or `csv` / `txt`).
 
 </details>
 
@@ -169,6 +190,7 @@ Click any prompt to expand its parameters and workflow.
 - **`search-for-code`** — `query`: `PopulateAndAssign` or `EnsLib.REST.GenericService`.
 - **`analyze-table-globals-content`** — same table/schema as `analyze-table`, for example `Employer` / `MCPTest`.
 - **`import-csv-workflow`** — paste the first few lines of [`example_data/patients.csv`](example_data/patients.csv) into `csv_sample`, with `table_name`: `Patients` and an unused schema such as `MCPTest`. (You can also use any small fictional CSV and a **new** `table_name` that does not already exist.)
+- **`export-table`** — `table_name`: `Employer`, `table_schema`: `MCPTest`, `format`: `json` (or `csv` / `txt`). The prompt previews the data and the underlying `export_table` tool returns the full payload as a single string ready to copy into `Employer.json` / `Employer.csv` / `Employer.txt`.
 - **`create-rest-bp-endpoint`** — `bp_class`: `MCPTest.BP.QueryService`; leave other fields empty to accept the defaults the prompt proposes, or set them to match your existing production. With this repo's `docker compose`, the **web** port is mapped to **9092** on the host; a typical run of the prompt registers a CSP/REST web application under **`/rest/user/...`** and a production item **`QueryService-REST-BS`** (`EnsLib.REST.GenericService`) that forwards to the **`QueryService`** business process. Before calling it, ensure demo data exists by invoking the **`run_class_method`** tool with `class_name`: `MCPTest.Employer`, `method_name`: `PopulateAndAssign`, `args`: `[]` (or rely on `iris.script`, which populates only when the table is still empty after import). Then validate the endpoint from a shell (**`-i`** prints response headers; on macOS/Linux use `curl` instead of `curl.exe`):
 
   ```bash
@@ -376,7 +398,7 @@ Use this when the client cannot spawn the server itself — for example a remote
 ### Configure Cursor or Claude Desktop
 
 <details>
-<summary>Click to expand — Local (<code>uv run</code>) vs Remote (<code>uvx</code>) JSON snippets for Cursor and Claude Desktop, with a Windows path note</summary>
+<summary>Click to expand — Local (<code>uv run</code>) vs Remote (<code>uvx</code>) JSON snippets for Cursor and Claude Desktop</summary>
 
 There are two distribution modes for any MCP client config: **local** (`uv run` against a clone you maintain) and **remote** (`uvx` pulling the package from GitHub or PyPI on demand). Pick one per server.
 
@@ -388,7 +410,9 @@ There are two distribution modes for any MCP client config: **local** (`uv run` 
 | Changes to `.py` files | Reflected immediately | Require a new commit + push (or republish) |
 | Best for | Development | Sharing / distribution |
 
-#### Local: `uv run` against a clone
+#### 1. Local: `uv run` against a cloned MCP
+
+Clone this GitHub repository on a local folder and run the Docker container.
 
 **Cursor** — create or edit `.cursor/mcp.json` in the repo root. Cursor uses the **workspace folder** as the MCP server's working directory, so a plain `uv` command works without any extra path:
 
@@ -414,12 +438,14 @@ There are two distribution modes for any MCP client config: **local** (`uv run` 
 }
 ```
 
+Other top-level keys you may already have in the `.json` file can stay alongside `mcpServers`.
+
 </details>
 
 **Claude Desktop** — Claude Desktop does **not** inherit a workspace folder, and on Windows the `uv` executable is often outside of Claude's `PATH`. To make a local launch reliable you usually have to:
 
 1. Point `command` at the **absolute path to `uv.exe`** (or to the `uv` binary on macOS / Linux).
-2. Pass `--directory <repo-root>` to `uv` so it finds `pyproject.toml` (preferred over the `cwd` key, which is honored inconsistently across versions).
+2. Pass `--directory <repo-root>` to `uv` so it finds `pyproject.toml`.
 
 Config file locations:
 
@@ -429,7 +455,7 @@ Config file locations:
 <details>
 <summary>Claude Desktop JSON (local, Windows)</summary>
 
-Replace the two absolute paths with yours. Other top-level keys you may already have in `claude_desktop_config.json` (e.g. a `preferences` block) can stay alongside `mcpServers`.
+Replace the two absolute paths with yours.
 
 ```json
 {
@@ -455,20 +481,24 @@ Replace the two absolute paths with yours. Other top-level keys you may already 
 }
 ```
 
-On macOS / Linux the same shape works; just replace the path with `which uv` (typically `/Users/<you>/.local/bin/uv` or `/opt/homebrew/bin/uv`) and use a forward-slash repo path.
+Find your own `uv.exe` location with `where uv` in Windows Terminal (typically `C:\Users\<you>\.local\bin\uv.exe` after `pip install uv`).
+
+On macOS / Linux a similar shape works. Just adjust the uv path and use a forward-slash repo path.
+
+After editing the JSON, **fully quit Claude Desktop from the system tray** (closing the window is not enough) and relaunch. Cursor only needs the MCP server reload icon.
 
 </details>
 
-#### Remote: `uvx` from GitHub or PyPI
+#### 2. Remote: `uvx` from GitHub or PyPI
 
 `uvx` downloads the package, builds it in a temporary isolated environment, and runs it — no clone, no `uv sync`, no manual venv. The user only needs `uv` installed.
 
 <details>
-<summary>From GitHub (works as soon as the repo is pushed; separate JSON for Cursor and Claude Desktop, plus a Windows cache-priming step)</summary>
+<summary>From GitHub (after the repository has been pushed)</summary>
 
-Replace `<you>` with your GitHub username (the example below uses `pietrodileo`) and adjust `IRIS_*` for your environment.
+Adjust `IRIS_*` for your environment.
 
-**Cursor** — `.cursor/mcp.json` (bare `uvx`; Cursor inherits `PATH` so this works on Windows, macOS, and Linux):
+**Cursor** — `.cursor/mcp.json` (uses just `uvx`; Cursor inherits `PATH` so this works on Windows, macOS, and Linux):
 
 ```json
 {
@@ -492,15 +522,10 @@ Replace `<you>` with your GitHub username (the example below uses `pietrodileo`)
 }
 ```
 
-**Claude Desktop on Windows** — `claude_desktop_config.json` (use the absolute path to `uvx.exe`, since Claude Desktop spawns child processes with a sanitized `PATH` that often does **not** include `C:\Users\<you>\.local\bin`):
+**Claude Desktop on Windows** — `claude_desktop_config.json` (use the absolute path to `uvx.exe`):
 
 ```json
 {
-    "preferences": {
-        "coworkWebSearchEnabled": true,
-        "coworkScheduledTasksEnabled": false,
-        "ccdScheduledTasksEnabled": false
-    },
     "mcpServers": {
         "iris-mcp-blueprint": {
             "command": "C:\\Users\\p.dileo\\.local\\bin\\uvx.exe",
@@ -520,30 +545,6 @@ Replace `<you>` with your GitHub username (the example below uses `pietrodileo`)
     }
 }
 ```
-
-Find your own `uvx.exe` location with `where.exe uvx` in PowerShell (typically `C:\Users\<you>\.local\bin\uvx.exe` after `pip install uv`).
-
-**Windows note — `Git executable not found`**
-
-When Claude Desktop (and occasionally Cursor) first launches `uvx --from git+...` on Windows, you may see:
-
-```text
-× Failed to download and build `iris-mcp-blueprint @ git+https://github.com/...`
-├─▶ Git operation failed
-╰─▶ Git executable not found. Ensure that Git is installed and available.
-```
-
-This is a known [`uv` issue on Windows](https://github.com/astral-sh/uv/issues/5491) — even when `git` is on the system `PATH`, the `uv.exe` process spawned by a GUI host can fail to see it. The reliable workaround is to **prime `uv`'s build cache once from a normal PowerShell**:
-
-```powershell
-uvx --from git+https://github.com/pietrodileo/iris-mcp-blueprint.git iris-mcp-blueprint --help
-```
-
-That single invocation resolves the GitHub HEAD commit, clones via the `git` that PowerShell sees, builds the wheel, and caches the result under `%LOCALAPPDATA%\uv\cache\` keyed by the commit hash. Afterwards, the MCP client reuses the cached build and never invokes `git` at runtime.
-
-**Important:** the cache is keyed by commit hash, so every new push to `main` requires re-priming. To avoid that during development, **pin to a tag or commit** in the JSON — for example `git+https://github.com/pietrodileo/iris-mcp-blueprint.git@v0.1.0`. Or publish to PyPI (next subsection) — the PyPI form doesn't need `git` at all.
-
-After editing the JSON, **fully quit Claude Desktop from the system tray** (closing the window is not enough) and relaunch. Cursor only needs the MCP server reload icon.
 
 </details>
 

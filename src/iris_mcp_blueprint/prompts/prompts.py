@@ -60,6 +60,40 @@ def import_csv_workflow(table_name: str, csv_sample: str, table_schema: str = ""
     8. If the user agrees with your proposal, create indexes on the proper columns using the 'create_index' tool, asking for index names.
     """
 
+@mcp.prompt("export-table")
+def export_table_prompt(table_name: str, format: str = "json", table_schema: str = ""):
+    """
+    Guided workflow that helps the AI export an existing IRIS table to JSON, CSV,
+    or TXT. The AI inspects the table first, helps the user pick a sensible scope
+    (full table vs. filtered subset), then calls the 'export_table' tool and
+    previews the result.
+
+    Args:
+        table_name: The name of the table to export (no schema).
+        format: The output format — 'json' (list of objects), 'csv' (RFC 4180),
+            or 'txt' (pipe-separated table). Default is 'json'.
+        table_schema: The schema of the table (optional; if empty the AI will
+            help select one, defaulting to 'SQLUser').
+    """
+    fmt = (format or "json").strip().lower()
+    fqn = f"{table_schema}.{table_name}" if table_schema else table_name
+    return f"""You are an IRIS Data Engineer. The user wants to export the table '{fqn}' as {fmt.upper()}.
+    Please follow these steps:
+    1. If 'table_schema' is empty, list candidates with the 'res_tables_all' resource (or the 'get_tables' tool) and ask the user to choose. Default is 'SQLUser'. Once chosen, use '<chosen_schema>.{table_name}' as the fully-qualified name from now on.
+    2. Use 'describe_table' with table_name='{table_name}' and the chosen schema to confirm the columns and types so the user knows what will be exported.
+    3. Use 'fetch_data' with the SQL `SELECT COUNT(*) FROM <chosen_schema>.{table_name}` to report the total row count. If it exceeds ~10000 rows, warn the user that exporting everything in chat may be unreadable.
+    4. Ask the user whether to:
+       - export all rows (set 'limit' to 0 to disable the cap), OR
+       - apply a 'WHERE' filter (passed as the 'where' argument, no leading 'WHERE' keyword), OR
+       - select a subset of 'columns' (list of column names), OR
+       - keep the default 'limit=1000' (recommended for chat preview).
+    5. Confirm the requested 'format' is one of 'json', 'csv', 'txt'. Default to '{fmt}' otherwise.
+    6. Call the 'export_table' tool with table_name='{table_name}', table_schema=<chosen_schema>, format='{fmt}', plus any agreed columns / where / limit.
+    7. Show the user a short preview (first ~10 lines for csv/txt, or first ~5 items for json) and report the total length of the returned content.
+    8. Tell the user how to persist the output (e.g. save to '<table_name>.{fmt}'). The exact mechanism depends on the host — Cursor users can copy the content into a new file; clients with file-write capability can write the file directly.
+    9. If the tool returns a string starting with 'Export Error:' or 'Export failed', stop, surface the error verbatim, and ask the user how to proceed.
+    """
+
 # --- PROMPTS FOR ATELIER API ---
 
 @mcp.prompt("search-for-code")

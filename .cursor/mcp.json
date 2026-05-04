@@ -1,0 +1,16 @@
+{
+  "mcpServers": {
+    "iris-mcp-blueprint": {
+      "command": "uv",
+      "args": ["run", "iris-mcp-blueprint"],
+      "env": {
+        "IRIS_HOSTNAME": "localhost",
+        "IRIS_PORT": "9091", // SuperServer port exposed in docker-compose.yml
+        "IRIS_WEB_PORT": "9092", // Management Portal / REST APIs - http://localhost:9092/csp/sys/UtilHome.csp
+        "IRIS_NAMESPACE": "USER",
+        "IRIS_USERNAME": "_SYSTEM",
+        "IRIS_PASSWORD": "SYS"
+      }
+    }
+  }
+}

@@ -1,0 +1,21 @@
+[project]
+name = "iris-mcp-blueprint"
+version = "0.1.0"
+description = "Blueprint of an MCP server to work with InterSystems IRIS"
+readme = "README.md"
+authors = [
+    { name = "Pietro Di Leo", email = "pietrodileo_00@yahoo.it" }
+]
+requires-python = ">=3.12"
+dependencies = [
+    "fastmcp>=3.2.4",
+    "intersystems-irispython>=5.3.2",
+    "requests>=2.33.1",
+]
+
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[project.scripts]
+iris-mcp-blueprint = "iris_mcp_blueprint.entrypoint:main"

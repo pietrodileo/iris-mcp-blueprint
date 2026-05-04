@@ -1,0 +1,19 @@
+    // Unexpire passwords for dev mode
+    zn "%SYS"
+    Do ##class(Security.Users).UnExpireUserPasswords("*")
+
+    // Load classes from durable source
+    zn "USER"
+    set importPath = "/opt/irisapp/src"
+    write "Loading classes at '", importPath, "' ...", !
+    set errors = ""
+    do $System.OBJ.Import(importPath,"cuk",,.errors)
+    if errors = 0 {
+        write "Classes loaded successfully", !
+        // Demo data for MCPTest.BP.QueryService (skip if employers already exist)
+        if (##class(MCPTest.Employer).%Count() = 0) {
+            do ##class(MCPTest.Employer).PopulateAndAssign()
+        }
+    } Else { write errors, " errors occurred while loading classes!", ! }
+    
+    halt

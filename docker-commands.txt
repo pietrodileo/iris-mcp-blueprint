@@ -1,0 +1,23 @@
+# Remove any old container
+docker rm -f <container-name>
+
+# Remove any old local image tagged with <image-name>
+docker rmi <image-name>:latest
+
+# Build your clean project-specific image
+docker compose build --no-cache
+
+# Start container in background
+docker compose up -d
+
+# Start container in background and build image
+docker compose up -d --build
+
+# Check logs (should include your entrypoint messages)
+docker logs -f <container-name>
+
+# Show entrypoint logs
+docker exec -it <container-name> cat /opt/irisapp/logs/entrypoint.log
+
+# remove container and image
+docker compose down --rmi all -v

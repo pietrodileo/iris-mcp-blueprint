@@ -12,6 +12,11 @@ dependencies = [
     "intersystems-irispython>=5.3.2",
     "requests>=2.33.1",
 ]
+license = "MIT"
+license-files = ["LICEN[CS]E*"]
+
+[project.urls]
+Homepage = "https://github.com/pietrodileo/iris-mcp-blueprint"
 
 [build-system]
 requires = ["hatchling"]

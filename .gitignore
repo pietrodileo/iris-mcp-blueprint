@@ -8,6 +8,7 @@ wheels/
 .pytest_cache/
 .pytest_cache/
 __pycache__/
+.pypirc
 
 # Virtual environments
 .venv

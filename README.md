@@ -90,48 +90,54 @@ Prompts are short, reusable **workflow instructions** returned by `@mcp.prompt` 
 
 ### What each prompt does (more detail)
 
-#### `analyze-table`
+Click any prompt to expand its parameters and workflow.
 
-*Data-engineering review of a single SQL table.*
+<details>
+<summary><code>analyze-table</code> — data-engineering review of a single SQL table</summary>
 
 - **Arguments:** `table_name` (required); `schema_name` (optional — if empty the workflow asks you to pick a schema, defaulting to `SQLUser`).
 - **What it does:** drives `res_tables_all` (when the schema is unknown), `describe_table` for columns and types, `fetch_data` for a small sample (first five rows), and finally writes a recommendation for **indexes** that would help typical access patterns.
 
-#### `explore-class`
+</details>
 
-*Source-level tour of one ObjectScript class.*
+<details>
+<summary><code>explore-class</code> — source-level tour of one ObjectScript class</summary>
 
 - **Arguments:** `query` = full class name (for example `MCPTest.BP.QueryService`).
 - **What it does:** calls `get_class_source`, then summarizes **InstanceMethods / ClassMethods**, **properties**, and — when present — the `<Storage>` block and related **globals**.
 - **Use it when:** you need a readable overview before editing or documenting code. Several other prompts chain into `explore-class` for deeper analysis.
 
-#### `import-csv-workflow`
+</details>
 
-*End-to-end CSV → new IRIS table flow.*
+<details>
+<summary><code>import-csv-workflow</code> — end-to-end CSV → new IRIS table flow</summary>
 
 - **Arguments:** `table_name`; a `csv_sample` string (headers plus a few rows are enough); optional `table_schema`.
 - **What it does:** infers types from the sample, checks whether the target already exists via `res_tables_all`, refuses to overwrite blindly, then calls `import_csv_to_iris`. After load it uses `describe_table` and `fetch_data` (for example `SELECT COUNT(*)`) to verify shape and row counts, and may suggest `create_index` once you agree on names.
 - **Try it with the bundled sample:** paste the first few lines of [`example_data/patients.csv`](example_data/patients.csv) (header + a handful of rows) into `csv_sample`, set `table_name` to a fresh name such as `Patients`, and optionally `table_schema` to `MCPTest` (or any schema you like). The workflow will create the table and load all rows.
 
-#### `search-for-code`
+</details>
 
-*Atelier-style discovery across the namespace.*
+<details>
+<summary><code>search-for-code</code> — Atelier-style discovery across the namespace</summary>
 
 - **Arguments:** `query` = any text to find in class sources (API name, method name, ObjectScript fragment).
 - **Steps:** `search_code` → list of matching classes → you choose which hits matter → those classes are studied further (the prompt text tells the model to reuse `explore-class`) → short explanation of *how* the string appears in each chosen class.
 - **Use it for:** refactors, security reviews, or learning how a pattern is used in your application.
 
-#### `analyze-table-globals-content`
+</details>
 
-*Goes below SQL to the global nodes backing a persistent class.*
+<details>
+<summary><code>analyze-table-globals-content</code> — goes below SQL to the global nodes backing a persistent class</summary>
 
 - **Arguments:** `table_name`; optional `table_schema`. The class is treated as `{table_schema}.{table_name}` when that matches your persistent package.
 - **What it does:** locates every distinct **global** and explains its role (data vs index vs stream) and may call `check_global` / `check_global_content` or `fetch_data` to verify their content.
 - **Use it when:** you care about physical layout, not only column names.
 
-#### `create-rest-bp-endpoint`
+</details>
 
-*Interoperability recipe: expose an `Ens.BusinessProcess` subclass over HTTP using `EnsLib.REST.GenericService`.*
+<details>
+<summary><code>create-rest-bp-endpoint</code> — expose an <code>Ens.BusinessProcess</code> subclass over HTTP via <code>EnsLib.REST.GenericService</code></summary>
 
 - **Arguments:** `bp_class` (for example `MCPTest.BP.QueryService`); optional `bp_config_name`, `bs_config_name`, `web_app_path`, `production_name`.
 - **What it does:**
@@ -143,6 +149,8 @@ Prompts are short, reusable **workflow instructions** returned by `@mcp.prompt` 
   6. Applies the BS setting tweaks listed in the prompt.
   7. Documents the URL pattern `http://<host>:<webport><web_app_path>/<bs_config_name>` and runs an HTTP smoke test.
 - **After running it:** validate with the curl examples in [How to test them (Cursor and similar clients)](#how-to-test-them-cursor-and-similar-clients).
+
+</details>
 
 ### How to test them (Cursor and similar clients)
 
@@ -202,7 +210,8 @@ Only **three runtime dependencies** are pinned in `pyproject.toml` (`fastmcp`, `
 
 The fastest path is to **clone this repo as a template** and rename the package, but you can also bootstrap from scratch with `uv`. Either way, the moving parts are the same: a `pyproject.toml` script entry, a FastMCP `mcp_app`, and one or more `@mcp.tool` / `@mcp.prompt` / `@mcp.resource` handlers.
 
-**Option 1 — fork/clone this repo and rename it**
+<details>
+<summary><strong>Option 1</strong> — fork / clone this repo and rename it</summary>
 
 1. Clone, then rename the package directory `src/iris_mcp_blueprint/` and update the imports / entry point that reference it.
 2. In `pyproject.toml`, change `name`, `description`, `authors`, and the `[project.scripts]` line so the CLI command and entry-point match the new package (`my-mcp = "my_mcp.entrypoint:main"`).
@@ -210,7 +219,10 @@ The fastest path is to **clone this repo as a template** and rename the package,
 4. Add or remove handlers under `tools/`, `prompts/`, `resources/`. Each new module must be **imported** from `entrypoint.py` (or wherever `mcp_app.run()` is invoked) so the decorators register before the server starts.
 5. Run `uv sync` once to refresh the lockfile, then `uv run my-mcp --help` to smoke-test the new CLI name.
 
-**Option 2 — bootstrap a new package from scratch**
+</details>
+
+<details>
+<summary><strong>Option 2</strong> — bootstrap a new package from scratch with <code>uv</code></summary>
 
 ```bash
 uv init --package my-mcp           # creates pyproject.toml, src/my_mcp/, etc.
@@ -255,6 +267,8 @@ my-mcp = "my_mcp.entrypoint:main"
 ```
 
 Then `uv run my-mcp` launches the server over stdio.
+
+</details>
 
 ### IRIS connection environment variables
 
@@ -305,7 +319,10 @@ There are two distribution modes for any MCP client config: **local** (`uv run` 
 
 #### Local: `uv run` against a clone
 
-**Cursor** — create or edit `.cursor/mcp.json` in the repo root:
+**Cursor** — create or edit `.cursor/mcp.json` in the repo root. Cursor uses the **workspace folder** as the MCP server's working directory, so a plain `uv` command works without any extra path:
+
+<details>
+<summary>Cursor JSON (local)</summary>
 
 ```json
 {
@@ -326,25 +343,34 @@ There are two distribution modes for any MCP client config: **local** (`uv run` 
 }
 ```
 
-> **Windows note:** Cursor may not set the working directory to the repo root automatically. If `uv` cannot find `pyproject.toml`, add a `"cwd"` key:
->
-> ```json
-> "cwd": "C:\\path\\to\\iris-mcp-blueprint"
-> ```
+</details>
 
-**Claude Desktop** — same `mcpServers` block, placed in the Claude config file. Always set `"cwd"` to the absolute path of the cloned repo so `uv` finds `pyproject.toml`.
+**Claude Desktop** — Claude Desktop does **not** inherit a workspace folder, and on Windows the `uv` executable is often outside of Claude's `PATH`. To make a local launch reliable you usually have to:
 
-Config file location:
+1. Point `command` at the **absolute path to `uv.exe`** (or to the `uv` binary on macOS / Linux).
+2. Pass `--directory <repo-root>` to `uv` so it finds `pyproject.toml` (preferred over the `cwd` key, which is honored inconsistently across versions).
+
+Config file locations:
+
 - **Windows:** `%APPDATA%\Claude\claude_desktop_config.json`
 - **macOS:** `~/Library/Application Support/Claude/claude_desktop_config.json`
 
+<details>
+<summary>Claude Desktop JSON (local, Windows — verified working)</summary>
+
+Replace the two absolute paths with yours. Other top-level keys you may already have in `claude_desktop_config.json` (e.g. a `preferences` block) can stay alongside `mcpServers`.
+
 ```json
 {
   "mcpServers": {
     "iris-mcp-blueprint": {
-      "command": "uv",
-      "args": ["run", "iris-mcp-blueprint"],
-      "cwd": "/path/to/iris-mcp-blueprint",
+      "command": "C:\\Users\\<you>\\.local\\bin\\uv.exe",
+      "args": [
+        "--directory",
+        "C:\\path\\to\\iris-mcp-blueprint",
+        "run",
+        "iris-mcp-blueprint"
+      ],
       "env": {
         "IRIS_HOSTNAME": "localhost",
         "IRIS_PORT": "9091",
@@ -357,12 +383,17 @@ Config file location:
   }
 }
 ```
+
+On macOS / Linux the same shape works; just replace the path with `which uv` (typically `/Users/<you>/.local/bin/uv` or `/opt/homebrew/bin/uv`) and use a forward-slash repo path.
+
+</details>
 
 #### Remote: `uvx` from GitHub or PyPI
 
 `uvx` downloads the package, builds it in a temporary isolated environment, and runs it — no clone, no `uv sync`, no manual venv. The user only needs `uv` installed.
 
-**From GitHub** (works as soon as the repo is pushed; same JSON for Cursor and Claude Desktop):
+<details>
+<summary>From GitHub (works as soon as the repo is pushed; same JSON for Cursor and Claude Desktop)</summary>
 
 ```json
 {
@@ -386,13 +417,20 @@ Config file location:
 }
 ```
 
-**From PyPI** (after publishing — see the next section):
+For Claude Desktop on Windows, swap `"command": "uvx"` for the absolute path (e.g. `"C:\\Users\\<you>\\.local\\bin\\uvx.exe"`).
+
+</details>
+
+<details>
+<summary>From PyPI (after publishing)</summary>
+
+Run from any shell:
 
 ```bash
 uvx iris-mcp-blueprint
 ```
 
-Or, in any client `mcp.json`:
+Or wire it into any client `mcp.json`:
 
 ```json
 {
@@ -405,6 +443,8 @@ Or, in any client `mcp.json`:
   }
 }
 ```
+
+</details>
 
 ### Publish to PyPI
 

@@ -521,6 +521,9 @@ Or wire it into any client `mcp.json`:
 
 ### Publish to PyPI
 
+<details>
+<summary>Click to expand — bump version, <code>uv build</code>, <code>uv publish</code> (with TestPyPI dry-run), then verify with <code>uvx</code></summary>
+
 Once the project is ready to share, build a wheel and upload it so anyone with `uv` installed can run it via `uvx iris-mcp-blueprint`.
 
 1. Bump `version` in `pyproject.toml` (PyPI rejects re-uploads of an existing version).
@@ -550,3 +553,5 @@ Once the project is ready to share, build a wheel and upload it so anyone with `
    ```
 
 After a successful upload, switch any client `mcp.json` from the GitHub form to the simpler PyPI form shown above.
+
+</details>

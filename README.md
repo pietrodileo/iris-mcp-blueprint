@@ -287,23 +287,76 @@ For SSE / HTTP transport you can also set `MCP_TRANSPORT`, `FASTMCP_HOST`, and `
 
 ### Run the server from the terminal
 
-**stdio** (default — for subprocess-based MCP clients like Cursor):
+The server supports two transports. Pick the one that matches **how the MCP client will reach it**:
+
+| Transport | When to use it | How the client connects |
+|---|---|---|
+| **`stdio`** *(default)* | The MCP client (Cursor, Claude Desktop, …) lives on the **same machine** and can spawn the server as a subprocess. This is what every example earlier in this README uses. | Client launches the `command` from its `mcp.json` and reads/writes JSON over `stdin`/`stdout`. |
+| **`sse`** *(HTTP / Server-Sent Events)* | The client is **on a different machine**, in a sandbox, or otherwise can't spawn subprocesses. The server runs as a long-lived HTTP service and the client connects to a URL. | `GET http://<host>:<port>/sse` (the SSE endpoint exposed by FastMCP). |
+
+#### `stdio` (default — what Cursor / Claude Desktop normally use)
+
+You usually do **not** start `stdio` mode by hand — your MCP client launches it for you using the JSON config in [Configure Cursor or Claude Desktop](#configure-cursor-or-claude-desktop). The same command works in a terminal if you want to verify it manually:
 
 ```bash
 uv run iris-mcp-blueprint
 ```
 
-**SSE / HTTP** (for remote clients that cannot spawn a subprocess):
+The process now waits for an MCP client on `stdin`. Press **Ctrl+C** to stop. There is nothing to "open" in a browser; this transport is meant for a parent process.
 
-```bash
-uv run iris-mcp-blueprint --transport sse --host 0.0.0.0 --port 8000
-```
+#### `sse` (remote / HTTP)
 
-Remote clients connect to `http://<host>:8000/sse`. The same options can be set via env vars:
+Use this when the client cannot spawn the server itself — for example a remote IDE, a hosted assistant, or you want several users to share one server instance.
 
-```bash
-MCP_TRANSPORT=sse FASTMCP_HOST=0.0.0.0 FASTMCP_PORT=8000 uv run iris-mcp-blueprint
-```
+1. Start the server explicitly in SSE mode and bind it to an interface and port reachable by the client. `0.0.0.0` listens on **all** network interfaces; `127.0.0.1` is loopback-only.
+
+   ```bash
+   uv run iris-mcp-blueprint --transport sse --host 0.0.0.0 --port 8000
+   ```
+
+   Equivalent using environment variables (handy in `docker run`, `systemd` units, etc.):
+
+   ```bash
+   MCP_TRANSPORT=sse FASTMCP_HOST=0.0.0.0 FASTMCP_PORT=8000 uv run iris-mcp-blueprint
+   ```
+
+   Defaults if you omit them: `--transport stdio`, `--host 127.0.0.1`, `--port 8000` (these are also the values returned when `--help` is invoked).
+
+2. Make sure firewalls / Docker / cloud security groups allow inbound traffic to that port from the client.
+
+3. Point the client at the SSE endpoint. Replace `<host>` with the address that is reachable from the client (`localhost` if it's the same machine, otherwise the public/LAN IP or DNS name); the path is always `/sse`:
+
+   ```text
+   http://<host>:8000/sse
+   ```
+
+   In Cursor, that goes in **Settings → MCP → Add server (SSE / URL)**. In Claude Desktop, use a JSON entry such as:
+
+   ```json
+   {
+     "mcpServers": {
+       "iris-mcp-blueprint": {
+         "url": "http://<host>:8000/sse",
+         "env": {
+           "IRIS_HOSTNAME": "localhost",
+           "IRIS_PORT": "9091",
+           "IRIS_WEB_PORT": "9092",
+           "IRIS_NAMESPACE": "USER",
+           "IRIS_USERNAME": "_SYSTEM",
+           "IRIS_PASSWORD": "SYS"
+         }
+       }
+     }
+   }
+   ```
+
+4. Quick smoke-test from any host that can reach the URL — the SSE endpoint should keep the connection open and stream events (you'll see `event:` / `data:` lines):
+
+   ```bash
+   curl -N http://<host>:8000/sse
+   ```
+
+> **Security note**: SSE mode does **not** add authentication on top — anyone who can reach the URL can call the tools (and therefore your IRIS instance). Bind to `127.0.0.1`, put a reverse proxy in front, or run it inside a private network.
 
 ### Configure Cursor or Claude Desktop
 

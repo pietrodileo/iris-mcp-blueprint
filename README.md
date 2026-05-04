@@ -14,7 +14,6 @@ An **InterSystems IRIS**-backed **[FastMCP](https://gofastmcp.com/)** server tha
 | **[uv](https://docs.astral.sh/uv/) ≥ 0.5** | Installs deps from `pyproject.toml` + `uv.lock`, runs the CLI (`uv run`) and remote builds (`uvx`) | Versions older than 0.5 may not understand the lockfile or `uv init --package` |
 | **Docker** with `docker compose` v2 | Runs the IRIS database container described by `docker-compose.yml` | Image: `intersystems/iris-community:latest-cd` (see `Dockerfile`) |
 | **Git** | Cloning this repo (and any `uvx --from git+...` install of remote forks) | — |
-| **`curl`** *(optional)* | Smoke-test the demo REST endpoint exposed by `MCPTest.BP.QueryService` | On Windows, the bundled `curl.exe` is fine |
 | **MCP-compatible client** *(at runtime)* | Drives the prompts and tools | Cursor, Claude Desktop, or anything that speaks MCP over stdio / SSE |
 
 Notes:
@@ -32,18 +31,23 @@ pip install uv
 
 ## Quick start
 
-> **Order matters.** The MCP server connects to IRIS at startup. If you launch it before IRIS is reachable, **every IRIS-backed tool will fail with a connection error**. Always do the steps **in this order**: ① clone the repo → ② start the IRIS Docker container → ③ set the IRIS env vars in your MCP client config → ④ start (or restart) the MCP server from the client.
+**Order matters.** The MCP server connects to IRIS at startup. If you launch it before IRIS is reachable, **every IRIS-backed tool will fail with a connection error**. Always do the steps **in this order**:
+  1. clone the repo
+  2. start the IRIS Docker container
+  3. set the IRIS env vars in your MCP client config
+  4. start (or restart) the MCP server from the client.
 
 ### 1. Clone the repo
 
 ```bash
-git clone https://github.com/<you>/iris-mcp-blueprint.git
+git clone https://github.com/pietrodileo/iris-mcp-blueprint.git
 cd iris-mcp-blueprint
 ```
 
-Optional smoke-check that the MCP server starts at all (this also bootstraps `.venv/` from `pyproject.toml` + `uv.lock` on first run):
+You can perform an optional smoke-check to ensure the MCP server starts at all (this also bootstraps `.venv/` from `pyproject.toml` + `uv.lock` on first run):
 
 ```bash
+uv sync
 uv run iris-mcp-blueprint --help
 ```
 
@@ -86,17 +90,59 @@ Prompts are short, reusable **workflow instructions** returned by `@mcp.prompt` 
 
 ### What each prompt does (more detail)
 
-**`analyze-table`** — Data-engineering review of a single SQL table. Arguments: **`table_name`** (required), **`schema_name`** (optional; if empty the workflow asks you to pick a schema, defaulting to `SQLUser`). The embedded steps drive **`res_tables_all`** (when the schema is unknown), **`describe_table`** for columns and types, **`fetch_data`** for a small sample (first five rows), and finally a written recommendation for **indexes** that would help typical access patterns.
+#### `analyze-table`
 
-**`explore-class`** — Source-level tour of one **ObjectScript class**. Argument: **`query`** = full class name (for example `MCPTest.BP.QueryService`). The model uses **`get_class_source`**, then summarizes **InstanceMethods / ClassMethods**, **properties**, and—when present—the **`<Storage>`** block and related **globals**. Use it whenever you need a readable overview before editing or documenting code. Several other prompts chain into `explore-class` for deeper analysis.
+*Data-engineering review of a single SQL table.*
 
-**`import-csv-workflow`** — End-to-end **CSV → new IRIS table** flow. Arguments: **`table_name`**, a **`csv_sample`** string (headers plus a few rows are enough), and optional **`table_schema`**. The assistant infers types from the sample, checks whether the target already exists via **`res_tables_all`**, refuses to overwrite blindly, then calls **`import_csv_to_iris`**. After load, it uses **`describe_table`** and **`fetch_data`** (for example `SELECT COUNT(*)`) to verify shape and row counts, then may suggest **`create_index`** once you agree on index names. Ideal for ad hoc data loads separate from the packaged `MCPTest` classes. **You can try this prompt with the sample CSV shipped in [`example_data/patients.csv`](example_data/patients.csv)**: paste its first few lines (header + a handful of rows) into `csv_sample`, set **`table_name`** to a fresh name such as `Patients`, and optionally **`table_schema`** to `MCPTest` (or any schema you like) — the workflow will create the table and load all rows.
+- **Arguments:** `table_name` (required); `schema_name` (optional — if empty the workflow asks you to pick a schema, defaulting to `SQLUser`).
+- **What it does:** drives `res_tables_all` (when the schema is unknown), `describe_table` for columns and types, `fetch_data` for a small sample (first five rows), and finally writes a recommendation for **indexes** that would help typical access patterns.
 
-**`search-for-code`** — **Atelier-style** discovery across the namespace. Argument: **`query`** = any text to find in class sources (API name, method name, fragment of ObjectScript). Steps: **`search_code`** → list of matching classes → you choose which hits matter → those classes are studied further (the prompt text tells the model to reuse **`explore-class`**) → short explanation of *how* the string appears in each chosen class. Good for refactors, security reviews, or learning how a pattern is used in your application.
+#### `explore-class`
 
-**`analyze-table-globals-content`** — Goes **below SQL** to the **global nodes** backing a persistent class. Arguments: **`table_name`**, optional **`table_schema`**; the class is treated as `{table_schema}.{table_name}` when that matches your persistent package. The workflow locates **DataLocation**, **IdLocation**, **IndexLocation**, **StreamLocation**, lists every **distinct global** and its role (data vs index vs stream), and may call **`check_global`** / **`check_global_content`** or **`fetch_data`** to correlate raw `$LIST` nodes with logical rows. Use it when you care about physical layout, replication, or backup scope—not only column names.
+*Source-level tour of one ObjectScript class.*
 
-**`create-rest-bp-endpoint`** — **Interoperability** recipe: expose a **`Ens.BusinessProcess`** subclass over HTTP using **`EnsLib.REST.GenericService`**. Arguments include **`bp_class`** (for example `MCPTest.BP.QueryService`) and optional **`bp_config_name`**, **`bs_config_name`**, **`web_app_path`**, **`production_name`**. The scripted steps verify **`OnRequest`** / **`EnsLib.HTTP.GenericMessage`**, ensure an **active production**, **`add_production_item`** for the BP and the REST BS (with **`TargetConfigNames`**), **`register_web_application`**, **`update_production`**, optional **`list_production_items`**, demo data via **`run_class_method`** when the BP is `MCPTest.BP.QueryService`, BS setting tweaks as in the prompt, then documentation of the URL pattern **`http://<host>:<webport><web_app_path>/<bs_config_name>`** and an HTTP smoke test. After running it, validate with the **curl** examples in [Testing the demo REST service (QueryService)](#testing-the-demo-rest-service-queryservice).
+- **Arguments:** `query` = full class name (for example `MCPTest.BP.QueryService`).
+- **What it does:** calls `get_class_source`, then summarizes **InstanceMethods / ClassMethods**, **properties**, and — when present — the `<Storage>` block and related **globals**.
+- **Use it when:** you need a readable overview before editing or documenting code. Several other prompts chain into `explore-class` for deeper analysis.
+
+#### `import-csv-workflow`
+
+*End-to-end CSV → new IRIS table flow.*
+
+- **Arguments:** `table_name`; a `csv_sample` string (headers plus a few rows are enough); optional `table_schema`.
+- **What it does:** infers types from the sample, checks whether the target already exists via `res_tables_all`, refuses to overwrite blindly, then calls `import_csv_to_iris`. After load it uses `describe_table` and `fetch_data` (for example `SELECT COUNT(*)`) to verify shape and row counts, and may suggest `create_index` once you agree on names.
+- **Try it with the bundled sample:** paste the first few lines of [`example_data/patients.csv`](example_data/patients.csv) (header + a handful of rows) into `csv_sample`, set `table_name` to a fresh name such as `Patients`, and optionally `table_schema` to `MCPTest` (or any schema you like). The workflow will create the table and load all rows.
+
+#### `search-for-code`
+
+*Atelier-style discovery across the namespace.*
+
+- **Arguments:** `query` = any text to find in class sources (API name, method name, ObjectScript fragment).
+- **Steps:** `search_code` → list of matching classes → you choose which hits matter → those classes are studied further (the prompt text tells the model to reuse `explore-class`) → short explanation of *how* the string appears in each chosen class.
+- **Use it for:** refactors, security reviews, or learning how a pattern is used in your application.
+
+#### `analyze-table-globals-content`
+
+*Goes below SQL to the global nodes backing a persistent class.*
+
+- **Arguments:** `table_name`; optional `table_schema`. The class is treated as `{table_schema}.{table_name}` when that matches your persistent package.
+- **What it does:** locates every distinct **global** and explains its role (data vs index vs stream) and may call `check_global` / `check_global_content` or `fetch_data` to verify their content.
+- **Use it when:** you care about physical layout, not only column names.
+
+#### `create-rest-bp-endpoint`
+
+*Interoperability recipe: expose an `Ens.BusinessProcess` subclass over HTTP using `EnsLib.REST.GenericService`.*
+
+- **Arguments:** `bp_class` (for example `MCPTest.BP.QueryService`); optional `bp_config_name`, `bs_config_name`, `web_app_path`, `production_name`.
+- **What it does:**
+  1. Verifies `OnRequest` / `EnsLib.HTTP.GenericMessage` on the BP.
+  2. Ensures an **active production** exists.
+  3. Calls `add_production_item` for the BP and for the REST BS (with `TargetConfigNames`).
+  4. Calls `register_web_application`, then `update_production`, with optional `list_production_items`.
+  5. For `MCPTest.BP.QueryService`, runs `MCPTest.Employer:PopulateAndAssign` via `run_class_method` to seed demo data.
+  6. Applies the BS setting tweaks listed in the prompt.
+  7. Documents the URL pattern `http://<host>:<webport><web_app_path>/<bs_config_name>` and runs an HTTP smoke test.
+- **After running it:** validate with the curl examples in [How to test them (Cursor and similar clients)](#how-to-test-them-cursor-and-similar-clients).
 
 ### How to test them (Cursor and similar clients)
 
@@ -217,8 +263,8 @@ The server reads these at startup with `os.getenv()`. Set them wherever you laun
 | Variable | Default | Description |
 |---|---|---|
 | `IRIS_HOSTNAME` | `localhost` | IRIS host |
-| `IRIS_PORT` | `1972` | SuperServer TCP port (`9091` in the sample Docker mapping) |
-| `IRIS_WEB_PORT` | `52773` | Management Portal / REST APIs port (`9092` in the sample Docker mapping) |
+| `IRIS_PORT` | `9091` | SuperServer TCP port (`1972` is the default value for the IRIS instance, while `9091` is the value of the example Docker mapping) |
+| `IRIS_WEB_PORT` | `9092` | Management Portal / REST APIs port (`52773` is the default value for the IRIS instance, while `9092` is the value of the example Docker mapping) |
 | `IRIS_NAMESPACE` | `USER` | IRIS namespace |
 | `IRIS_USERNAME` | `_SYSTEM` | IRIS username |
 | `IRIS_PASSWORD` | `SYS` | IRIS password |

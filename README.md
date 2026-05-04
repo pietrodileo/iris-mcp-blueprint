@@ -572,7 +572,7 @@ You can wire it into any client `mcp.json` using `uvx` and calling directly pack
 ### Publish to PyPI
 
 <details>
-<summary>Click to expand — bump the version, <code>uv build</code>, then <code>uv publish --token …</code>, and verify with <code>uvx</code></summary>
+<summary>Click to expand — bump the version, <code>uv build</code>, then <code>uv publish</code> with a PyPI token exported as <code>UV_PUBLISH_TOKEN</code>, and verify with <code>uvx</code></summary>
 
 Once the project is ready to share, build a wheel and upload it so anyone with `uv` installed can run it via `uvx iris-mcp-blueprint`.
 
@@ -594,13 +594,7 @@ Once the project is ready to share, build a wheel and upload it so anyone with `
 
 3. **Get a PyPI token.** Log in to [PyPI](https://pypi.org/manage/account/token/) and create an API token (project-scoped is recommended once the project exists; otherwise use an account-wide token for the first upload). The token always starts with `pypi-`.
 
-4. **Publish with the token.** Pass it on the command line — `uv publish` does not read `~/.pypirc`:
-
-   ```bash
-   uv publish --token pypi-<your-token>
-   ```
-
-   To avoid putting the token in your shell history, export it and let `uv` pick it up from the environment instead:
+4. **Publish with the token.** Export the token as `UV_PUBLISH_TOKEN` so it does not end up in your shell history; `uv publish` reads it automatically:
 
    ```bash
    # Linux / macOS / Git Bash

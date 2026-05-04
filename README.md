@@ -551,13 +551,7 @@ Adjust `IRIS_*` for your environment.
 <details>
 <summary>From PyPI (after publishing)</summary>
 
-Run from any shell:
-
-```bash
-uvx iris-mcp-blueprint
-```
-
-Or wire it into any client `mcp.json`:
+You can wire it into any client `mcp.json` using `uvx` and calling directly package name `iris-mcp-blueprint`:
 
 ```json
 {
@@ -578,31 +572,47 @@ Or wire it into any client `mcp.json`:
 ### Publish to PyPI
 
 <details>
-<summary>Click to expand — update version, <code>uv build</code>, <code>uv publish</code> (with TestPyPI dry-run), then verify with <code>uvx</code></summary>
+<summary>Click to expand — bump the version, <code>uv build</code>, then <code>uv publish --token …</code>, and verify with <code>uvx</code></summary>
 
 Once the project is ready to share, build a wheel and upload it so anyone with `uv` installed can run it via `uvx iris-mcp-blueprint`.
 
-1. Bump `version` in `pyproject.toml` (PyPI rejects re-uploads of an existing version).
-2. Build distributable artifacts:
+1. **Bump the version.** PyPI rejects re-uploads of an existing version, so every release needs a new number. Use `uv version` to update `pyproject.toml` (and `uv.lock`) in one step:
+
+   ```bash
+   uv version --bump patch    # 0.1.0 -> 0.1.1
+   uv version --bump minor    # 0.1.0 -> 0.2.0
+   uv version --bump major    # 0.1.0 -> 1.0.0
+   uv version 1.2.3           # set an explicit version
+   uv version                 # just print the current version
+   ```
+
+2. **Build distributable artifacts:**
 
    ```bash
    uv build      # writes sdist + wheel into dist/
    ```
 
-3. Publish:
+3. **Get a PyPI token.** Log in to [PyPI](https://pypi.org/manage/account/token/) and create an API token (project-scoped is recommended once the project exists; otherwise use an account-wide token for the first upload). The token always starts with `pypi-`.
+
+4. **Publish with the token.** Pass it on the command line — `uv publish` does not read `~/.pypirc`:
 
    ```bash
-   uv publish    # uses PYPI_TOKEN env var or credentials in ~/.pypirc
+   uv publish --token pypi-<your-token>
    ```
 
-   For a dry run, target **TestPyPI** first:
+   To avoid putting the token in your shell history, export it and let `uv` pick it up from the environment instead:
 
    ```bash
-   uv publish --publish-url https://test.pypi.org/legacy/
-   uvx --index-url https://test.pypi.org/simple/ iris-mcp-blueprint
+   # Linux / macOS / Git Bash
+   export UV_PUBLISH_TOKEN=pypi-<your-token>
+   uv publish
+
+   # PowerShell
+   $env:UV_PUBLISH_TOKEN = "pypi-<your-token>"
+   uv publish
    ```
 
-4. Verify the public install:
+5. **Verify the public install** (uses the freshly uploaded version, no `git` needed):
 
    ```bash
    uvx iris-mcp-blueprint --help

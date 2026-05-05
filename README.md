@@ -280,7 +280,6 @@ Add an entry point in `src/my_mcp/entrypoint.py`:
 
 ```python
 from my_mcp.mcp_app import mcp
-import my_mcp.tools.echo  # noqa: F401  -- registers @mcp.tool
 
 def main() -> None:
     mcp.run()

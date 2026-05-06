@@ -1,8 +1,8 @@
 {
   "mcpServers": {
     "iris-mcp-blueprint": {
-      "command": "uv",
-      "args": ["run", "iris-mcp-blueprint"],
+      "command": "uvx",
+      "args": ["iris-mcp-blueprint"],
       "env": {
         "IRIS_HOSTNAME": "localhost",
         "IRIS_PORT": "9091",

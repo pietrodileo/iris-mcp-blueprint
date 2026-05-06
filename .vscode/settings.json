@@ -12,6 +12,6 @@
             "service": "iris",
             "internalPort": 52773
         },
-        "active": true
+        "active": false
     }
 }

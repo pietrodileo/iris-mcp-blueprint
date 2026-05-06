@@ -1,18 +1,6 @@
 {
   "mcpServers": {
     "iris-mcp-blueprint": {
-      "command": "uvx",
-      "args": ["iris-mcp-blueprint"],
-      "env": {
-        "IRIS_HOSTNAME": "localhost",
-        "IRIS_PORT": "9091",
-        "IRIS_WEB_PORT": "9092",
-        "IRIS_NAMESPACE": "USER",
-        "IRIS_USERNAME": "_SYSTEM",
-        "IRIS_PASSWORD": "SYS"
-      }
-    },
-    "iris-mcp-blueprint2": {
       "command": "uv",
       "args": ["run", "iris-mcp-blueprint"],
       "env": {

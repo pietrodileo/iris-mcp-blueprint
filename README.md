@@ -1,8 +1,8 @@
 # IRIS MCP Blueprint
 
-> ⚠️ **This repository is an example, not a finished product.** It is a *blueprint* showing **how to build an MCP server for InterSystems IRIS** that performs operations across several tool categories — **SQL**, **Globals**, **Class methods**, **Atelier API**, and **Interoperability** (see [`src/iris_mcp_blueprint/tools/`](src/iris_mcp_blueprint/tools/)) — plus reusable **prompts** and **resources**. It is **not** intended to be a comprehensive, drop-in MCP server for any IRIS workload. Treat it as a **starting point**: clone it, keep what you need, remove what you don't, and **tailor the tools, prompts, and resources to your own IRIS application** (your namespaces, classes, productions, security model, business rules, etc.). The accompanying ObjectScript demo under `src/MCPTest/` exists only to give the included tools/prompts something to work against.
+> ⚠️ **This repository is an example, not a finished product.** It's a *blueprint* showing **how to build an MCP server for InterSystems IRIS** that performs operations across several tool categories: **SQL**, **Globals**, **Class methods**, **Atelier API**, and **Interoperability** (see [`src/iris_mcp_blueprint/tools/`](src/iris_mcp_blueprint/tools/)), plus a handful of reusable **prompts** and **resources**. It is **not** meant to be a one-size-fits-all MCP server for every IRIS workload. Use it as a **starting point**: clone it, keep what you need, drop what you don't, and **adapt the tools, prompts, and resources to your own IRIS application** (namespaces, classes, productions, security model, business rules, and so on). The ObjectScript demo under `src/MCPTest/` is only there to give the included tools/prompts something to work against.
 
-An **InterSystems IRIS**-backed **[FastMCP](https://gofastmcp.com/)** server that exposes IRIS tools, prompts, and resources to any MCP-compatible client (Cursor, Claude Desktop, and others). The Python package under `src/iris_mcp_blueprint/` connects to IRIS over the Native SDK and wraps common tasks (SQL, globals, Atelier search, production interoperability, class methods, and more). Example **ObjectScript** classes in `src/MCPTest/` (including `MCPTest.BP.QueryService`) demonstrate patterns you can drive from the MCP tools or from guided **prompts**.
+A **[FastMCP](https://gofastmcp.com/)** server that exposes tools, prompts, and resources to work with **InterSystems IRIS** with any MCP-compatible client (Cursor, Claude Desktop, and others). The Python package under `src/iris_mcp_blueprint/` connects to IRIS over the Native SDK and wraps the operations you tend to repeat by hand — running SQL, poking at globals, searching code through the Atelier API, driving an Interoperability production, calling class methods, and so on. The **ObjectScript** classes in `src/MCPTest/` (including `MCPTest.BP.QueryService`) are there as a concrete target so the tools and the guided **prompts** have something realistic to operate on.
 
 ---
 
@@ -31,7 +31,7 @@ pip install uv
 
 ## Quick start
 
-**Order matters.** The MCP server connects to IRIS at startup. If you launch it before IRIS is reachable, **every IRIS-backed tool will fail with a connection error**. Always do the steps **in this order**:
+**Order matters here.** The MCP server opens its IRIS connection at startup, and if IRIS isn't reachable yet **every IRIS-backed tool will fail with a connection error**. Stick to this order:
   1. clone the repo
   2. start the IRIS Docker container
   3. set the IRIS env vars in your MCP client config
@@ -75,7 +75,7 @@ Launch the server **from the MCP client** so it picks up the env block. In Curso
 
 ## MCP prompts and how to try them
 
-Prompts are short, reusable **workflow instructions** returned by `@mcp.prompt` handlers in `src/iris_mcp_blueprint/prompts/prompts.py`. They do not run code by themselves; they tell the assistant which **tools** to call and in what order (for example: `get_class_source`, `add_production_item`, `run_class_method`).
+Prompts are short, reusable **workflow instructions** returned by `@mcp.prompt` handlers in `src/iris_mcp_blueprint/prompts/prompts.py`. They don't run code on their own — they just tell the assistant which **tools** to call and in what order (for example `get_class_source`, then `add_production_item`, then `run_class_method`).
 
 ### Available prompts (quick reference)
 
@@ -91,7 +91,7 @@ Prompts are short, reusable **workflow instructions** returned by `@mcp.prompt` 
 
 ### What each prompt does (more detail)
 
-Click any prompt to expand its parameters and workflow.
+Each entry below is collapsed by default — click to see arguments and the steps the prompt walks the assistant through.
 
 <details>
 <summary><code>analyze-table</code> — data-engineering review of a single SQL table</summary>
@@ -209,7 +209,7 @@ Click any prompt to expand its parameters and workflow.
 
 ## Configuration
 
-This section covers everything you need beyond the **Quick start**: bootstrapping a brand-new MCP server from this layout, wiring the server into Cursor and Claude Desktop, and (optionally) publishing to PyPI for `uvx`-style installs.
+This section picks up where the **Quick start** left off: bootstrapping a brand-new MCP server from this layout, wiring the server into Cursor and Claude Desktop, and (optionally) publishing to PyPI so others can install it with `uvx`.
 
 ### Project layout
 
@@ -231,11 +231,11 @@ iris-mcp-blueprint/
 └── README.md
 ```
 
-Only **three runtime dependencies** are pinned in `pyproject.toml` (`fastmcp`, `intersystems-irispython`, `requests`); transitive versions live in `uv.lock`. There is no `requirements.txt`.
+Only **three runtime dependencies** are pinned in `pyproject.toml` (`fastmcp`, `intersystems-irispython`, `requests`); the rest of the transitive graph lives in `uv.lock`. There's no `requirements.txt`.
 
 ### Initialize a new MCP project
 
-The fastest path is to **clone this repo as a template** and rename the package, but you can also bootstrap from scratch with `uv`. Either way, the moving parts are the same: a `pyproject.toml` script entry, a FastMCP `mcp_app`, and one or more `@mcp.tool` / `@mcp.prompt` / `@mcp.resource` handlers.
+The easiest route is to **clone this repo as a template** and rename the package, but you can also bootstrap from scratch with `uv`. Either way, the pieces are always the same: a `pyproject.toml` script entry, a FastMCP `mcp_app`, and one or more `@mcp.tool` / `@mcp.prompt` / `@mcp.resource` handlers.
 
 <details>
 <summary><strong>Option 1</strong> — fork / clone this repo and rename it</summary>
@@ -301,7 +301,7 @@ Then `uv run my-mcp` launches the server over stdio.
 <details>
 <summary>Click to expand — table of <code>IRIS_*</code> variables (host, port, namespace, credentials) the server reads at startup</summary>
 
-The server reads these at startup with `os.getenv()`. Set them wherever you launch the server (shell, `mcp.json` `env` block, Docker environment, CI secrets store). There is **no** automatic `.env` file loading.
+The server reads these at startup with `os.getenv()`. Set them wherever you launch the server from (shell, `mcp.json` `env` block, Docker environment, CI secrets store). Note that there's **no** automatic `.env` file loading.
 
 | Variable | Default | Description |
 |---|---|---|
@@ -399,7 +399,7 @@ Use this when the client cannot spawn the server itself — for example a remote
 <details>
 <summary>Click to expand — Local (<code>uv run</code>) vs Remote (<code>uvx</code>) JSON snippets for Cursor and Claude Desktop</summary>
 
-There are two distribution modes for any MCP client config: **local** (`uv run` against a clone you maintain) and **remote** (`uvx` pulling the package from GitHub or PyPI on demand). Pick one per server.
+There are two distribution modes for any MCP client config: **local** (`uv run` against a clone you maintain locally) and **remote** (`uvx` pulling the package from GitHub or PyPI on demand). Pick one per server — they're not meant to be combined.
 
 | | Local (`uv run`) | Remote (`uvx`) |
 |---|---|---|
@@ -573,7 +573,7 @@ You can wire it into any client `mcp.json` using `uvx` and calling directly pack
 <details>
 <summary>Click to expand — bump the version, <code>uv build</code>, then <code>uv publish</code> with a PyPI token exported as <code>UV_PUBLISH_TOKEN</code>, and verify with <code>uvx</code></summary>
 
-Once the project is ready to share, build a wheel and upload it so anyone with `uv` installed can run it via `uvx iris-mcp-blueprint`.
+Once the project is ready to share, build a wheel and upload it to PyPI so anyone with `uv` installed can run it via `uvx iris-mcp-blueprint` without cloning the repo first.
 
 1. **Bump the version.** PyPI rejects re-uploads of an existing version, so every release needs a new number. Use `uv version` to update `pyproject.toml` (and `uv.lock`) in one step:
 

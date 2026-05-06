@@ -212,8 +212,10 @@ Step 5 - Add the Business Service (REST entry point)
        config_name=<bs_config_name>,
        pool_size=1, enabled=true,
        comment='REST entry point routing to <bp_config_name>',
-       settings={{"TargetConfigNames": "<bp_config_name>"}}.
-     The `TargetConfigNames` setting is what wires the BS to the BP.
+       settings={{"TargetConfigName": "<bp_config_name>"}}.
+     The `TargetConfigName` setting (singular - this is the host setting exposed
+     by `EnsLib.REST.GenericService`, not the generic plural `TargetConfigNames`)
+     is what wires the BS to the BP.
 
 Step 6 - Register the Web Application
    - Call `register_web_application` with:
@@ -236,8 +238,10 @@ Step 9 - Modify the Business Service
    - Use the 'update_production_item_settings' tool to modify the Business Service settings and update the production using the 'update_production' tool to:
        PoolSize=0,
        Port=empty,
-       settings={{"TargetConfigNames": "<bp_config_name>"}}.
-     The `TargetConfigNames` setting is what wires the BS to the BP.
+       settings={{"TargetConfigName": "<bp_config_name>"}}.
+     The `TargetConfigName` setting (singular - this is the host setting exposed
+     by `EnsLib.REST.GenericService`, not the generic plural `TargetConfigNames`)
+     is what wires the BS to the BP.
      Report the resulting configuration to the user.
 
 Step 10 - Tell the user how to call the endpoint

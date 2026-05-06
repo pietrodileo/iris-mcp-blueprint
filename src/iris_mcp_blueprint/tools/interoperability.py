@@ -41,6 +41,18 @@ def _open_production(iris, prod_name: str):
     return iris.classMethodObject("Ens.Config.Production", "%OpenId", prod_name)
 
 
+def _find_item_by_config_name(items, config_name: str):
+    """Return (index, item) for the first Items.GetAt(i) whose Name == config_name,
+    or (None, None) if no match is found.
+    """
+    n = items.invokeInteger("Count")
+    for i in range(1, n + 1):
+        it = items.invokeObject("GetAt", i)
+        if (it.get("Name") or "") == config_name:
+            return i, it
+    return None, None
+
+
 def _atelier_top_errors(data: dict) -> list[str]:
     lines: list[str] = []
     for err in (data.get("status") or {}).get("errors") or []:
@@ -264,11 +276,9 @@ def add_production_item(
             return f"ERROR: production '{prod_name}' not found."
 
         items = prod.get("Items")
-        n = items.invokeInteger("Count")
-        for i in range(1, n + 1):
-            it = items.invokeObject("GetAt", i)
-            if (it.get("Name") or "") == config_name:
-                return f"ERROR: an item named '{config_name}' already exists in '{prod_name}'."
+        existing_idx, _ = _find_item_by_config_name(items, config_name)
+        if existing_idx is not None:
+            return f"ERROR: an item named '{config_name}' already exists in '{prod_name}'."
 
         item = iris.classMethodObject("Ens.Config.Item", "%New")
         item.set("ClassName", class_name)
@@ -333,13 +343,7 @@ def remove_production_item(ctx: Context, config_name: str, production_name: str 
             return f"ERROR: production '{prod_name}' not found."
 
         items = prod.get("Items")
-        n = items.invokeInteger("Count")
-        remove_at: Optional[int] = None
-        for i in range(1, n + 1):
-            it = items.invokeObject("GetAt", i)
-            if (it.get("Name") or "") == config_name:
-                remove_at = i
-                break
+        remove_at, _ = _find_item_by_config_name(items, config_name)
         if remove_at is None:
             return f"ERROR: item '{config_name}' not found in '{prod_name}'."
 
@@ -355,6 +359,186 @@ def remove_production_item(ctx: Context, config_name: str, production_name: str 
             return e
 
         return f"OK: removed '{config_name}' from '{prod_name}'."
+    except Exception as e:
+        return f"ERROR: {e}"
+
+
+@mcp.tool()
+def get_production_item_settings(
+    ctx: Context,
+    config_name: str,
+    production_name: str = "",
+) -> str:
+    """
+    List the configured setting overrides on a Business Host
+    (Service / Process / Operation) inside a production.
+
+    Only settings explicitly stored on the `Ens.Config.Item` are returned —
+    settings that still use the class-level defaults are NOT listed (they
+    are not present in `item.Settings`). The output combines both `Host`
+    and `Adapter` targets and is meant as input to
+    `update_production_item_settings`.
+
+    Args:
+        config_name: Config name of the Business Host.
+        production_name: Production class name. If empty, the active
+            production is used.
+    """
+    iris = ctx.request_context.lifespan_context["iris"]
+    if iris is None:
+        return "ERROR: IRIS connection is not available."
+    try:
+        prod_name, err = _resolve_production_name(iris, production_name)
+        if err:
+            return err
+        prod = _open_production(iris, prod_name)
+        if prod is None:
+            return f"ERROR: production '{prod_name}' not found."
+
+        items = prod.get("Items")
+        _, item = _find_item_by_config_name(items, config_name)
+        if item is None:
+            return f"ERROR: item '{config_name}' not found in '{prod_name}'."
+
+        settings_list = item.get("Settings")
+        m = settings_list.invokeInteger("Count")
+        out_lines = [
+            f"Settings overrides for '{config_name}' in '{prod_name}':",
+            "Name | Target | Value",
+        ]
+        if m == 0:
+            out_lines.append("(no overrides — all settings use class defaults)")
+        else:
+            for i in range(1, m + 1):
+                s = settings_list.invokeObject("GetAt", i)
+                out_lines.append(
+                    " | ".join(
+                        [
+                            str(s.get("Name") or ""),
+                            str(s.get("Target") or "Host"),
+                            str(s.get("Value") or ""),
+                        ]
+                    )
+                )
+        return "\n".join(out_lines)
+    except Exception as e:
+        return f"ERROR: {e}"
+
+
+@mcp.tool()
+def update_production_item_settings(
+    ctx: Context,
+    config_name: str,
+    settings: dict,
+    production_name: str = "",
+    target: str = "Host",
+) -> str:
+    """
+    Update (or create) one or more setting overrides on an existing
+    Business Host inside a production.
+
+    For each `(name, value)` entry in `settings`:
+      - if the host already has an override with that `Name` and `Target`,
+        its `Value` is overwritten;
+      - otherwise a new `Ens.Config.Setting` is appended with the given
+        `Target`.
+
+    The production is then persisted with `SaveToClass` + `%Save`. To make
+    the changes take effect on a *running* production without a full
+    restart, call `update_production` afterwards (equivalent to clicking
+    "Update" in the Management Portal).
+
+    Notes:
+      - Setting names are matched case-sensitively (this is how IRIS
+        stores them on `Ens.Config.Setting`).
+      - Pass an empty string as the value to clear an override (the entry
+        is kept but its value is reset to the empty string, which IRIS
+        treats as "use the class default" for most settings).
+      - Some settings live on the host's adapter (e.g. `Port`,
+        `FilePath`, `Credentials`, ...); pass `target="Adapter"` to
+        target those.
+
+    Args:
+        config_name: Config name of the Business Host
+            (Service / Process / Operation) to modify.
+        settings: Dict of `{SettingName: value}` pairs to apply. Values
+            are coerced to strings before being stored.
+        production_name: Production class name. If empty, the active
+            production is used.
+        target: Setting target context, either `"Host"` (default) or
+            `"Adapter"`. Applied to every entry in this batch.
+    """
+    iris = ctx.request_context.lifespan_context["iris"]
+    if iris is None:
+        return "ERROR: IRIS connection is not available."
+    if not isinstance(settings, dict) or not settings:
+        return "ERROR: 'settings' must be a non-empty dict of {name: value} pairs."
+    target = (target or "Host").strip()
+    if target not in ("Host", "Adapter"):
+        return "ERROR: 'target' must be 'Host' or 'Adapter'."
+
+    try:
+        prod_name, err = _resolve_production_name(iris, production_name)
+        if err:
+            return err
+        prod = _open_production(iris, prod_name)
+        if prod is None:
+            return f"ERROR: production '{prod_name}' not found."
+
+        items = prod.get("Items")
+        _, item = _find_item_by_config_name(items, config_name)
+        if item is None:
+            return f"ERROR: item '{config_name}' not found in '{prod_name}'."
+
+        settings_list = item.get("Settings")
+        updated: list[str] = []
+        added: list[str] = []
+        for k, v in settings.items():
+            name = str(k)
+            value = "" if v is None else str(v)
+
+            existing = None
+            m = settings_list.invokeInteger("Count")
+            for i in range(1, m + 1):
+                s = settings_list.invokeObject("GetAt", i)
+                s_target = str(s.get("Target") or "") or "Host"
+                if str(s.get("Name") or "") == name and s_target == target:
+                    existing = s
+                    break
+
+            if existing is not None:
+                existing.set("Value", value)
+                updated.append(name)
+            else:
+                new_setting = iris.classMethodObject("Ens.Config.Setting", "%New")
+                new_setting.set("Name", name)
+                new_setting.set("Value", value)
+                new_setting.set("Target", target)
+                sc_ins = settings_list.invoke("Insert", new_setting)
+                e = _iris_status_error(iris, sc_ins, f"Settings.Insert({name})")
+                if e:
+                    return e
+                added.append(name)
+
+        sc = prod.invoke("SaveToClass")
+        e = _iris_status_error(iris, sc, "SaveToClass()")
+        if e:
+            return e
+        sc = prod.invoke("%Save")
+        e = _iris_status_error(iris, sc, "Ens.Config.Production.%Save")
+        if e:
+            return e
+
+        parts: list[str] = []
+        if updated:
+            parts.append(f"updated {len(updated)} ({', '.join(updated)})")
+        if added:
+            parts.append(f"added {len(added)} ({', '.join(added)})")
+        summary = "; ".join(parts) if parts else "no changes"
+        return (
+            f"OK: '{config_name}' [{target}] in '{prod_name}' — {summary}. "
+            f"Call `update_production` to apply to the running production."
+        )
     except Exception as e:
         return f"ERROR: {e}"
 

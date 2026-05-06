@@ -233,11 +233,12 @@ Step 8 - Prepare demo data when the BP is MCPTest.BP.QueryService
      args=[] so Employer/Employee tables are populated and linked. Skip this step for other BPs.
 
 Step 9 - Modify the Business Service 
-   - Modify the Business Service settings to:
-       PoolSize=empty,
+   - Use the 'update_production_item_settings' tool to modify the Business Service settings and update the production using the 'update_production' tool to:
+       PoolSize=0,
        Port=empty,
        settings={{"TargetConfigNames": "<bp_config_name>"}}.
      The `TargetConfigNames` setting is what wires the BS to the BP.
+     Report the resulting configuration to the user.
 
 Step 10 - Tell the user how to call the endpoint
    - The HTTP URL pattern for `EnsLib.REST.GenericService` is:

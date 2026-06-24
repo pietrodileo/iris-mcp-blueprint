@@ -1,13 +1,13 @@
 #!/bin/sh
 set -e
 
-# ─── Configuration ────────────────────────────────────────────────────────────
+# --- Configuration -------------------------------------------------------------
 IRIS_INSTANCE="IRIS"
 APP_DIR="/opt/irisapp"
 LOG_DIR="${APP_DIR}/logs"
 LOG_FILE="${LOG_DIR}/docker-entrypoint.log"
 SCRIPT_FILE="${APP_DIR}/iris.script"
-# ──────────────────────────────────────────────────────────────────────────────
+# ------------------------------------------------------------------------------
 
 echo "docker-entrypoint.sh started"
 
@@ -15,7 +15,7 @@ echo "docker-entrypoint.sh started"
 iris start "${IRIS_INSTANCE}" quietly
 echo "IRIS instance '${IRIS_INSTANCE}' started"
 
-# Run your import script every container startù
+# Run your import script every container start
 echo "Running iris.script session, logging to ${LOG_FILE}..."
 iris session "${IRIS_INSTANCE}" < "${SCRIPT_FILE}" >> "${LOG_FILE}" 2>&1
 echo "iris.script session completed"

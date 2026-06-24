@@ -91,6 +91,16 @@ ClassMethod PopulateAndAssign(employeeCount As %Integer = 100, employerCount As 
     Return sc
 }
 
+ClassMethod Count() As %Integer
+{
+    Set sql = "SELECT COUNT(*) FROM MCPTest.Employer"
+    Set stmt = ##class(%SQL.Statement).%New()
+    Set sc = stmt.%Prepare(sql)
+    Set rs = stmt.%Execute()
+    Set count = rs.%Get("COUNT(*)")
+    Return count
+}
+
 Storage Default
 {
 <Data name="EmployerDefaultData">

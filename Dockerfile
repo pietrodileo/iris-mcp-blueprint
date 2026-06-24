@@ -1,7 +1,7 @@
 # ------------------------------------------------------------------------------
 # Use the latest InterSystems IRIS Community Edition image as base
 # ------------------------------------------------------------------------------
-FROM intersystems/iris-community:latest-cd
+FROM intersystems/iris-community:latest-em
 
 # set variables for working directory
 ENV WORKDIR=/opt/irisapp
@@ -26,10 +26,11 @@ COPY src src
 
 # Script that will be executed by entrypoint at runtime to import source code 
 COPY iris.script .
+RUN sed -i 's/\r$//' iris.script
 
 # Startup script wrapper (will run at *container start*)
 COPY docker-entrypoint.sh .
-RUN chmod +x docker-entrypoint.sh
+RUN sed -i 's/\r$//' docker-entrypoint.sh && chmod +x docker-entrypoint.sh
 
 # Create logs directory and set permissions
 RUN mkdir -p ${WORKDIR}/logs && \

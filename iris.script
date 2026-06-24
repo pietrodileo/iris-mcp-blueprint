@@ -8,12 +8,9 @@
     write "Loading classes at '", importPath, "' ...", !
     set errors = ""
     do $System.OBJ.Import(importPath,"cuk",,.errors)
-    if errors = 0 {
-        write "Classes loaded successfully", !
-        // Demo data for MCPTest.BP.QueryService (skip if employers already exist)
-        if (##class(MCPTest.Employer).%Count() = 0) {
-            do ##class(MCPTest.Employer).PopulateAndAssign()
-        }
-    } Else { write errors, " errors occurred while loading classes!", ! }
-    
+    if errors = 0 { write "Classes loaded successfully", ! } 
+    If errors '= 0 { write errors, " errors occurred while loading classes!", ! }
+    // Demo data for MCPTest.BP.QueryService (skip if employers already exist)
+    if ((errors = 0) && (##class(MCPTest.Employer).Count() = 0)) { do ##class(MCPTest.Employer).PopulateAndAssign() } 
+    If ((errors = 0) && (##class(MCPTest.Employer).Count() '= 0)) { write "Employers already exist, skipping population", ! }
     halt

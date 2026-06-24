@@ -4,7 +4,8 @@ services:
     build:
       context: .        # Build using local Dockerfile
       dockerfile: Dockerfile
-    image: iris-mcp-example:latest  # Custom project image, not the base one
+    image: iris-mcp-example:latest  # Tag for the locally built image (not on Docker Hub)
+    pull_policy: build             # Always build from Dockerfile; never pull this image from a registry
     init: true
     restart: unless-stopped
     volumes:
